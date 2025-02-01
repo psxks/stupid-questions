@@ -199,4 +199,8 @@ Subtle, introspective animation with reflective effects.
     Room Doors (Hero’s Consciousness): Distinctive designs for each door (e.g., screams, visual indicators).
 
 
-____________________________________________Mechanics____________________________________________
+____________________________________________Plan____________________________________________
+
+-- add particle system 
+-- time delay
+-- fix jump bug

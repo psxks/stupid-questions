@@ -27,13 +27,20 @@ class Game():
         self.clock = pygame.time.Clock()
         self.movement = [False, False]
               
+        self.current_zoom = 1.0
+        self.target_zoom = 1.0
+              
         self.animations = {
             'player/idle': Animation('data/assets/Animations/Player/idle/anim1.png', img_dur=30),
+            'player/edge_idle': Animation('data/assets/Animations/Player/idle/anim2.png', img_dur=30),
             'player/run': Animation('data/assets/Animations/Player/walk/anim1.png', img_dur=6),
             'player/jump': Animation('data/assets/Animations/Player/jump/anim1.png', img_dur=7, loop=False),
             'player/wall_slide': Animation('data/assets/Animations/Player/slide/anim1.png'),
             'player/fall': Animation('data/assets/Animations/Player/fall/anim1.png'),
-            'player/land': Animation('data/assets/Animations/Player/land/anim1.png', img_dur=10, loop=False)
+            'player/land': Animation('data/assets/Animations/Player/land/anim1.png', img_dur=10, loop=False),
+            'player/levitation': Animation('data/assets/Animations/Player/levitation/anim1.png', img_dur=10),
+            'player/levitation_start': Animation('data/assets/Animations/Player/levitation/anim2.png', img_dur=10, loop=False),
+            'player/levitation_end': Animation('data/assets/Animations/Player/levitation/anim3.png', img_dur=10, loop=False)
         }
         
         self.player = Player(self, (50, 50), (8, 15))
@@ -59,7 +66,7 @@ class Game():
     def load_level(self, level_name):
         self.tilemap.load('data/levels/' + level_name + '.json')
         
-        self.player.pos = [14, 4]
+        self.player.pos = [40, 4]
         self.player.air_time = 0
         
         self.scroll = [0, 0]
@@ -68,6 +75,15 @@ class Game():
         
         while True:
             self.t += self.clock.get_time() / 1000
+            
+            
+            if 'X2Gravity' in self.player.buffs or 'X2Speed' in self.player.buffs:
+                self.target_zoom = 1.05
+            else:
+                self.target_zoom = 1.0     
+            
+            self.current_zoom += (self.target_zoom - self.current_zoom) * 0.1
+            
             
             self.ui_surf.fill((0,0,255))
             self.main_surf.fill((198, 183, 190))
@@ -127,9 +143,9 @@ class Game():
                     if event.key == pygame.K_f and self.ui['spell_2'].active:
                         self.button_conditions['spell_2'] = True
                         if self.player.form:
-                            self.player.buffs['X2Speed'] = Buff('X2Speed', 2, X2SpeedEffect, self.player, load_image('data/assets/spells/x2_speed.png'))
+                            self.player.buffs['X2Speed'] = Buff('X2Speed', 1.5, X2SpeedEffect, self.player, load_image('data/assets/spells/x2_speed.png'))
                         else:
-                            self.player.buffs['X2Gravity'] = Buff('X2Gravity', 2, X2GravityEffect, self.player, load_image('data/assets/spells/x2_speed_2.png'))
+                            self.player.buffs['X2Gravity'] = Buff('X2Gravity', 1.7, X2GravityEffect, self.player, load_image('data/assets/spells/x2_speed_2.png'))
                         self.ui['spell_2'].active = False
                         
                 if event.type == pygame.KEYUP:
@@ -144,10 +160,16 @@ class Game():
                     if event.key == pygame.K_d:
                         self.movement[1] = False
                         
-            self.display.blit(self.main_surf, (0,0))
-            
+            zoomed_size = (int(self.main_surf.get_width() * self.current_zoom), int(self.main_surf.get_height() * self.current_zoom))
+            offset_x = (self.main_surf.get_width() - zoomed_size[0]) // 2
+            offset_y = (self.main_surf.get_height() - zoomed_size[1]) // 2
+
+            zoomed_main_surf = pygame.transform.smoothscale(self.main_surf, zoomed_size)
+            self.display.blit(zoomed_main_surf, (offset_x, offset_y))
+
             self.decoration_surf.set_colorkey((0, 0, 0))
-            self.display.blit(self.decoration_surf, (0,0))
+            zoomed_decoration_surf = pygame.transform.smoothscale(self.decoration_surf, zoomed_size)
+            self.display.blit(zoomed_decoration_surf, (offset_x, offset_y))
             
             img = self.font.render(str(int(self.clock.get_fps())), True, (1, 1, 1))
             self.ui_surf.blit(img, (930, 10))
@@ -168,7 +190,8 @@ class Game():
             screen_surface = pygame.transform.scale(self.display, self.screen.get_size())
             screen_surface.blit(self.ui_surf, (0,0))
             
-            self.main_shader.render(screen_surface, self.t)
+            self.main_shader.render(screen_surface, self.t, True if 'X2Gravity' in self.player.buffs else False,
+                                    True if 'X2Speed' in self.player.buffs else False)
             
             pygame.display.flip()
             self.clock.tick(60)

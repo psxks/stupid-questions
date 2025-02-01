@@ -29,13 +29,15 @@ class Shader():
         tex.write(surf.get_view('1'))
         return tex
     
-    def render(self, surf, t):
+    def render(self, surf, t, gravity, speed):
         frame_tex = self.surf_to_texture(surf)
         frame_tex.use(0)
         
-        self.program['tex'] = 0
-        self.program['time'] = t
-        
+        self.program['tex'].value = 0
+        self.program['time'].value = t
+        self.program['gravity'].value = gravity
+        self.program['speed'].value = speed
+
         self.render_object.render(mode=moderngl.TRIANGLE_STRIP)
         
         frame_tex.release()

@@ -74,8 +74,6 @@ class PhysicsEntity():
         surf.blit(pygame.transform.flip(self.animation.img(), self.flip, False), 
                   (self.pos[0] - offset[0] + self.anim_offset[0], self.pos[1] - offset[1] + self.anim_offset[1] + 2))
 
-import pygame
-
 class Player(PhysicsEntity):
     def __init__(self, game, pos, size):
         super().__init__(game, 'player', pos, size)
@@ -86,58 +84,85 @@ class Player(PhysicsEntity):
         self.was_falling = False
         self.move_speed = 0.1
         self.slowdown = 1.0
+        self.slowdown_0 = 1.0
+        self.on_edge = False
 
     def update(self, tilemap, movement=(0, 0)):
         super().update(tilemap, movement=movement)
 
         self.air_time += 1
+        
+        if self.slowdown < 1 or self.slowdown_0 < 1:
 
-        if self.collisions['down']:
-            if self.was_falling:
-                self.set_action('land')
-                self.was_falling = False
-            self.air_time = 0
-            self.jumps = 1
+            if round(self.slowdown_0, 1) == self.slowdown:
+                self.set_action('levitation')
+            elif round(self.slowdown_0, 1) > self.slowdown:
+                self.set_action('levitation_start')
+                self.slowdown_0 -= 0.05
+            elif round(self.slowdown_0, 1) < self.slowdown:
+                self.set_action('levitation_end')
+                self.slowdown_0 += 0.05
+                        
         else:
-            if self.velocity[1] > 0.5:
-                self.was_falling = True
-                self.set_action('fall')
-
-        self.wall_slide = False
-        if (self.collisions['right'] or self.collisions['left']) and self.air_time > 4:
-            self.wall_slide = True
-            self.velocity[1] = min(self.velocity[1], 0.5) * self.slowdown
-            self.flip = self.collisions['left']
-            self.set_action('wall_slide')
-
-        if not self.wall_slide:
-            if self.air_time > 4:
-                self.set_action('jump')
-            elif movement[0] != 0:
-                self.set_action('run')
+            if self.collisions['down']:
+                if self.was_falling:
+                    self.set_action('land')
+                    self.was_falling = False
+                self.air_time = 0
+                self.jumps = 1
             else:
-                self.set_action('idle')
+                if self.velocity[1] > 0.5:
+                    self.was_falling = True
+                    self.set_action('fall')
+
+            self.wall_slide = False
+            if (self.collisions['right'] or self.collisions['left']) and self.air_time > 4:
+                self.wall_slide = True
+                self.velocity[1] = min(self.velocity[1], 0.5) * (self.slowdown/self.slowdown_0)
+                self.flip = self.collisions['left']
+                self.set_action('wall_slide')
+
+            
+            if self.collisions['down'] and movement[0] == 0:
+                left_point = (self.pos[0], self.pos[1] + self.size[1] + 1)
+                right_point = (self.pos[0] + self.size[0], self.pos[1] + self.size[1] + 1)
+                left_has_tile = any(rect.collidepoint(left_point) for rect in tilemap.physics_rects_around(self.pos))
+                right_has_tile = any(rect.collidepoint(right_point) for rect in tilemap.physics_rects_around(self.pos))
+                self.on_edge = not (left_has_tile and right_has_tile)
+
+            if not self.wall_slide:
+                if self.air_time > 4:
+                    if self.was_falling:
+                        self.set_action('fall')
+                    else:
+                        self.set_action('jump')
+                elif movement[0] != 0:
+                    self.set_action('run')
+                    self.on_edge = False
+                    
+                else:
+                    self.set_action('edge_idle' if self.on_edge else 'idle')
 
         if movement[0] > 0:
-            self.velocity[0] = min(self.velocity[0] + self.move_speed * self.slowdown, self.move_speed)
+            self.velocity[0] = min(self.velocity[0] + self.move_speed * (self.slowdown/self.slowdown_0), self.move_speed)
         elif movement[0] < 0:
-            self.velocity[0] = max(self.velocity[0] - self.move_speed * self.slowdown, -self.move_speed)
+            self.velocity[0] = max(self.velocity[0] - self.move_speed * (self.slowdown/self.slowdown_0), -self.move_speed)
         else:
             if self.velocity[0] > 0:
-                self.velocity[0] = max(self.velocity[0] - 0.1 * self.slowdown, 0)
+                self.velocity[0] = max(self.velocity[0] - 0.1 * (self.slowdown/self.slowdown_0), 0)
             else:
-                self.velocity[0] = min(self.velocity[0] + 0.1 * self.slowdown, 0)
+                self.velocity[0] = min(self.velocity[0] + 0.1 * (self.slowdown/self.slowdown_0), 0)
 
     def jump(self):
         if self.wall_slide:
             if self.flip and self.last_movement[0] < 0 or not self.flip and self.last_movement[0] > 0:
-                self.velocity[0] = 3.5 * self.slowdown * (1 if self.flip else -1)
+                self.velocity[0] = 3.5 * (self.slowdown/self.slowdown_0) * (1 if self.flip else -1)
                 self.velocity[1] = -2.5 
                 self.air_time = 5
                 self.jumps = max(0, self.jumps - 1)
                 return True
                 
-        elif self.jumps:
+        elif self.jumps and self.action in ['idle', 'run', 'land']:
             if self.slowdown < 1:
                 self.velocity[1] = -1
             else:
@@ -148,6 +173,7 @@ class Player(PhysicsEntity):
             return True
         
     def render(self, surf, offset=(0, 0)):
+ 
         def process_sprite(color_map):
             sprite = self.animation.img()
             sprite_copy = sprite.copy()
@@ -178,4 +204,3 @@ class Player(PhysicsEntity):
                 return
 
         super().render(surf, offset=offset)
-
