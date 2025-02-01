@@ -1,4 +1,5 @@
-import pygame
+import pygame, random
+from scripts.particles import Particle, load_particle_images
 
 class PhysicsEntity():
     def __init__(self, game, e_type, pos, size):
@@ -86,14 +87,14 @@ class Player(PhysicsEntity):
         self.slowdown = 1.0
         self.slowdown_0 = 1.0
         self.on_edge = False
+        self.land_timer = 0
 
     def update(self, tilemap, movement=(0, 0)):
         super().update(tilemap, movement=movement)
 
         self.air_time += 1
-        
-        if self.slowdown < 1 or self.slowdown_0 < 1:
 
+        if self.slowdown < 1 or self.slowdown_0 < 1:
             if round(self.slowdown_0, 1) == self.slowdown:
                 self.set_action('levitation')
             elif round(self.slowdown_0, 1) > self.slowdown:
@@ -102,18 +103,26 @@ class Player(PhysicsEntity):
             elif round(self.slowdown_0, 1) < self.slowdown:
                 self.set_action('levitation_end')
                 self.slowdown_0 += 0.05
-                        
+
         else:
+            if self.action == 'land':
+                self.land_timer -= 1
+                if self.land_timer <= 0:
+                    self.land_timer = 0
+
             if self.collisions['down']:
                 if self.was_falling:
                     self.set_action('land')
                     self.was_falling = False
+                    self.land_timer = 10
+                    
                 self.air_time = 0
                 self.jumps = 1
             else:
                 if self.velocity[1] > 0.5:
                     self.was_falling = True
                     self.set_action('fall')
+
 
             self.wall_slide = False
             if (self.collisions['right'] or self.collisions['left']) and self.air_time > 4:
@@ -122,7 +131,6 @@ class Player(PhysicsEntity):
                 self.flip = self.collisions['left']
                 self.set_action('wall_slide')
 
-            
             if self.collisions['down'] and movement[0] == 0:
                 left_point = (self.pos[0], self.pos[1] + self.size[1] + 1)
                 right_point = (self.pos[0] + self.size[0], self.pos[1] + self.size[1] + 1)
@@ -130,7 +138,7 @@ class Player(PhysicsEntity):
                 right_has_tile = any(rect.collidepoint(right_point) for rect in tilemap.physics_rects_around(self.pos))
                 self.on_edge = not (left_has_tile and right_has_tile)
 
-            if not self.wall_slide:
+            if not self.wall_slide and self.land_timer == 0:
                 if self.air_time > 4:
                     if self.was_falling:
                         self.set_action('fall')
@@ -152,7 +160,7 @@ class Player(PhysicsEntity):
                 self.velocity[0] = max(self.velocity[0] - 0.1 * (self.slowdown/self.slowdown_0), 0)
             else:
                 self.velocity[0] = min(self.velocity[0] + 0.1 * (self.slowdown/self.slowdown_0), 0)
-
+                
     def jump(self):
         if self.wall_slide:
             if self.flip and self.last_movement[0] < 0 or not self.flip and self.last_movement[0] > 0:
@@ -173,7 +181,7 @@ class Player(PhysicsEntity):
             return True
         
     def render(self, surf, offset=(0, 0)):
- 
+
         def process_sprite(color_map):
             sprite = self.animation.img()
             sprite_copy = sprite.copy()

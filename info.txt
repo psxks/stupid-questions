@@ -202,5 +202,3 @@ Subtle, introspective animation with reflective effects.
 ____________________________________________Plan____________________________________________
 
 -- add particle system 
--- time delay
--- fix jump bug

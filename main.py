@@ -1,4 +1,4 @@
-import sys, pygame
+import sys, pygame, random
 
 from scripts.utils import Animation, Tileset, load_image
 from scripts.player import Player
@@ -6,6 +6,7 @@ from scripts.tilemap import Tilemap
 from scripts.ui import SkillsUI, BuffUI
 from scripts.buff import *
 from scripts.shaders import Shader
+from scripts.particles import Particle, load_particle_images
 
 class Game():
     def __init__(self):
@@ -29,7 +30,9 @@ class Game():
               
         self.current_zoom = 1.0
         self.target_zoom = 1.0
-              
+        
+        load_particle_images('data/assets/particles')
+        
         self.animations = {
             'player/idle': Animation('data/assets/Animations/Player/idle/anim1.png', img_dur=30),
             'player/edge_idle': Animation('data/assets/Animations/Player/idle/anim2.png', img_dur=30),
@@ -37,7 +40,7 @@ class Game():
             'player/jump': Animation('data/assets/Animations/Player/jump/anim1.png', img_dur=7, loop=False),
             'player/wall_slide': Animation('data/assets/Animations/Player/slide/anim1.png'),
             'player/fall': Animation('data/assets/Animations/Player/fall/anim1.png'),
-            'player/land': Animation('data/assets/Animations/Player/land/anim1.png', img_dur=10, loop=False),
+            'player/land': Animation('data/assets/Animations/Player/land/anim1.png', img_dur=20, loop=False),
             'player/levitation': Animation('data/assets/Animations/Player/levitation/anim1.png', img_dur=10),
             'player/levitation_start': Animation('data/assets/Animations/Player/levitation/anim2.png', img_dur=10, loop=False),
             'player/levitation_end': Animation('data/assets/Animations/Player/levitation/anim3.png', img_dur=10, loop=False)
@@ -48,6 +51,8 @@ class Game():
         self.tileset = Tileset("data/assets/map_tiles/test_map/tileset.png", 16).load_tileset()
                 
         self.tilemap = Tilemap(self, tile_size=16)
+        
+        self.particles = []
         
         self.level = 'test'
         self.load_level(self.level)
@@ -76,7 +81,6 @@ class Game():
         while True:
             self.t += self.clock.get_time() / 1000
             
-            
             if 'X2Gravity' in self.player.buffs or 'X2Speed' in self.player.buffs:
                 self.target_zoom = 1.05
             else:
@@ -102,9 +106,93 @@ class Game():
                 offset=render_scroll,
             )
             
+            # particles
+            if self.player.action == 'run':
+                for i in range(random.randint(1,3)):
+                    if random.randint(1,20) == 1:
+                        
+                        if random.randint(1,10) == 5:
+                            particle_color = (51,51,51)
+                        elif random.randint(1,25) == 5:
+                            particle_color = (140,140,140)
+                        else:
+                            particle_color = self.main_surf.get_at((self.player.pos[0] + self.player.size[0] - self.scroll[0], self.player.pos[1] + self.player.size[1] - self.scroll[1] + 1))
+                        
+                        self.particles.append(
+                            Particle(
+                                self.player.pos[0] + self.player.size[0] // 2 + random.randint(-3, 3),
+                                self.player.pos[1] + self.player.size[1]-1,
+                                'grass', 
+                                [self.player.velocity[0], -0.1],
+                                0.5, 
+                                0,
+                                particle_color
+                            ))
+                        
+            if self.player.action == 'land':
+                for i in range(random.randint(1,2)):
+                    if i == 1:
+                        if random.randint(1,10) == 5:
+                            particle_color = (51,51,51)
+                        else:
+                            particle_color = self.main_surf.get_at((self.player.pos[0] + self.player.size[0] - self.scroll[0], self.player.pos[1] + self.player.size[1] - self.scroll[1] + 1))
+                        
+                        if random.randint(1,2) == 1:
+                            x = -1.2
+                        else:
+                            x = 1.2
+                        
+                        self.particles.append(
+                            Particle(
+                                self.player.pos[0] + self.player.size[0] // 2 + random.randint(-3, 3),
+                                self.player.pos[1] + self.player.size[1]-1,
+                                'grass', 
+                                [x, -0.2],
+                                0.5, 
+                                0,
+                                particle_color
+                            ))
+            
+            if self.player.action == 'jump':
+                if random.randint(1,50) == 1:
+                    self.particles.append(
+                        Particle(
+                            self.player.pos[0] + self.player.size[0] // 2 + random.randint(-3, 3),
+                            self.player.pos[1] + self.player.size[1]-1,
+                            'grass', 
+                            [0, 1],
+                            0.5, 
+                            0,
+                            (215,215,215)
+                        ))
+                
+            if self.player.action == 'wall_slide':
+                for i in range(random.randint(1,3)):
+                    if random.randint(1,10) == 1:
+                        particle_color = (140,140,140, 150)
+                        if random.randint(1,10) == 5:
+                            particle_color = (51,51,51, 150)
+                            
+                        self.particles.append(
+                            Particle(
+                                self.player.pos[0] + self.player.size[0] // 2,
+                                self.player.pos[1],
+                                'grass', 
+                                [0, (self.player.velocity[0]*-1)*2],
+                                0.5, 
+                                0,
+                                particle_color
+                            ))
+                        
+            for particle in self.particles[:]:
+                particle.update(self.clock.get_time() / 45)
+                
+            for particle in self.particles:
+                particle.draw(self.main_surf, self.scroll)
+
             self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
             self.player.render(self.main_surf, offset=render_scroll)
-            
+
             display_mask = pygame.mask.from_surface(self.display)
             display_sillhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
             
